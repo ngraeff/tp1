@@ -4,24 +4,24 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"tdas/cola"
-	
 	"rerepolez/errores"
 	"rerepolez/votos"
 	"strconv"
 	"strings"
+	"tdas/cola"
 )
 
 var (
-	// Implementacion de una lista enlazada para guardar el padron.
+	// Implementacion de un slice para guardar el padron en el.
 	sliceVotantes []votos.Votante
 	// Implementacion de un arreglo  para guardar los partidos
 	arregloDePartidos []votos.Partido
 
 	//Implementacion de 1 cola para el orden en que se ingresan los votantes.
-	colaVotantes    cola.Cola[votos.Votante]
+	colaVotantes cola.Cola[votos.Votante]
+
 	partidoEnBlanco votos.Partido
-	contadorVotos int
+	contadorVotos   int
 )
 
 // Detecta un error si falta parametros al comenzar
@@ -64,11 +64,11 @@ func lecturaDePadron(archivo string) bool {
 		linea = strings.TrimSuffix(linea, "\n")
 		dni, _ := strconv.Atoi(linea)
 		votante := votos.CrearVotante(dni)
-		sliceVotantes = append(sliceVotantes,votante)
+		sliceVotantes = append(sliceVotantes, votante) //Almacena uno a uno todos los DNI's
 	}
 
 	sliceVotantes = mergeSortVotantes(sliceVotantes) //Ordena el slice de votantes
-	
+
 	return true
 }
 
@@ -79,6 +79,7 @@ func lecturaDeBoletas(archivo string) bool {
 	if errorArchivo != nil {
 		return false
 	}
+
 	lector := bufio.NewReader(archivoAbierto)
 	partidoNulo := votos.CrearPartido("", votos.LISTA_IMPUGNA, [votos.CANT_VOTACION]string{"", "", ""}, [votos.CANT_VOTACION]int{votos.LISTA_IMPUGNA, votos.LISTA_IMPUGNA, votos.LISTA_IMPUGNA})
 	arregloDePartidos = append(arregloDePartidos, partidoNulo)
@@ -103,61 +104,63 @@ func lecturaDeBoletas(archivo string) bool {
 }
 
 // Esta funcion verifica si el DNI pertenece al padron cargado previamente.
-
-
+// Si existe, devuelve la struct del votante con ese numero de DNI
 func verificarDni(dni int) (votos.Votante, bool) {
-	indiceSlice, encontrado := busquedaBinaria(sliceVotantes, dni)
-	if encontrado == true {
-		return sliceVotantes[indiceSlice],true
+	indiceSlice := busquedaBinaria(sliceVotantes, dni)
+	if indiceSlice >= 0 { //Si el indice es no negativo, significa que el votante fue encontrado
+		return sliceVotantes[indiceSlice], true
 	}
 	return nil, false
 }
 
-func merge(izq, der []votos.Votante) []votos.Votante{
-	sliceFinal := make([]votos.Votante, 0, len(izq)+len(der)) 
+// MergeSort para ordenar de menor a mayor el padron
+// Parte el slice en mitades recursivamente hasta que quede solo 1 elemento
+func mergeSortVotantes(slice []votos.Votante) []votos.Votante {
+	if len(slice) <= 1 {
+		return slice
+	}
+
+	mit := len(slice) / 2
+	izq := mergeSortVotantes(slice[:mit])
+	der := mergeSortVotantes(slice[mit:])
+
+	return merge(izq, der)
+}
+
+// Junta las mitades en un slice pero de forma ordenada
+func merge(izq, der []votos.Votante) []votos.Votante {
+	sliceFinal := make([]votos.Votante, 0, len(izq)+len(der))
 	//Le fijamos la cap para que no tenga que redimensionar
 
-	i, d := 0,0 //izquierda y derecha
+	i, d := 0, 0 //izquierda y derecha
 
 	//Mientras no se acabe ninguna de las mitades
-	for i < len(izq) && d < len(der){
+	for i < len(izq) && d < len(der) {
 		if izq[i].LeerDNI() < der[d].LeerDNI() {
-			sliceFinal = append(sliceFinal,izq[i])
+			sliceFinal = append(sliceFinal, izq[i])
 			i++
 		} else {
-			sliceFinal = append(sliceFinal,der[d])
+			sliceFinal = append(sliceFinal, der[d])
 			d++
 		}
 	}
 
 	//Inserta todos los elementos que faltaran, si es que faltaba alguno
-	for j := i; j<len(izq); j++{
-		sliceFinal = append(sliceFinal,izq[j])
+	for j := i; j < len(izq); j++ {
+		sliceFinal = append(sliceFinal, izq[j])
 	}
-	for j := d; j<len(der); j++{
-		sliceFinal = append(sliceFinal,der[j])
+	for j := d; j < len(der); j++ {
+		sliceFinal = append(sliceFinal, der[j])
 	}
 
 	return sliceFinal
 }
 
-func mergeSortVotantes(slice []votos.Votante) []votos.Votante {
-	if len(slice) <= 1{
-		return slice
-	}
-
-	mit := len(slice)/2
-	izq := mergeSortVotantes(slice[:mit])
-	der := mergeSortVotantes(slice[mit:])
-
-	return merge(izq,der)
-}
-
-func busquedaBinaria(sliceVotantes []votos.Votante, dniBuscado int) (int,bool){
+func busquedaBinaria(sliceVotantes []votos.Votante, dniBuscado int) int {
 	izq, der := 0, len(sliceVotantes)-1
 
 	for izq <= der {
-		mit := (izq + der)/2
+		mit := (izq + der) / 2
 
 		if sliceVotantes[mit].LeerDNI() < dniBuscado {
 			izq = mit + 1
@@ -165,14 +168,13 @@ func busquedaBinaria(sliceVotantes []votos.Votante, dniBuscado int) (int,bool){
 		if sliceVotantes[mit].LeerDNI() > dniBuscado {
 			der = mit - 1
 		}
-		if sliceVotantes[mit].LeerDNI() == dniBuscado{
-			return mit, true
+		if sliceVotantes[mit].LeerDNI() == dniBuscado {
+			return mit
 		}
 	}
 
-	return -1,false
+	return -1
 }
-
 
 // Ingresa el dni válido a la cola.
 func ingresar(dni int) {
@@ -232,7 +234,7 @@ func votar(numeroLista int, tipoVoto string) {
 		fmt.Println(err.Error())
 		return
 	}
-	contadorVotos ++
+	contadorVotos++
 	fmt.Println("OK")
 }
 
@@ -241,7 +243,7 @@ func deshacer() {
 	err := persona.Deshacer()
 	errorVotoFraude := errores.ErrorVotanteFraudulento{persona.LeerDNI()}
 	if err != nil {
-		if err ==  errorVotoFraude{
+		if err == errorVotoFraude {
 			colaVotantes.Desencolar()
 		}
 		fmt.Println(err.Error())
@@ -273,34 +275,34 @@ func imprimirResltador() {
 		stringIntendente += "\n"
 	}
 	fmt.Println(stringIntendente)
-	if votos.VotosImpugnados == 1{
+	if votos.VotosImpugnados == 1 {
 		fmt.Printf("Votos Impugnados: %d voto\n", votos.VotosImpugnados)
-		return	
+		return
 	}
 	fmt.Printf("Votos Impugnados: %d votos\n", votos.VotosImpugnados)
 }
 
 func finVoto(votante votos.Votante) {
 	voto, posibleError := votante.FinVoto()
-	todoVotoEnBlanco := [3]int{0,0,0}
+	todoVotoEnBlanco := [3]int{0, 0, 0}
 	cantidadCandidatos := 3
-	if posibleError == nil && !voto.Impugnado && contadorVotos > 0 && voto.VotoPorTipo != todoVotoEnBlanco{
+	if posibleError == nil && !voto.Impugnado && contadorVotos > 0 && voto.VotoPorTipo != todoVotoEnBlanco {
 
 		for i := 0; i < cantidadCandidatos; i++ {
-		
+
 			if voto.VotoPorTipo[i] != 0 {
 				arregloDePartidos[voto.VotoPorTipo[i]].VotadoPara(votos.TipoVoto(i))
-			}else{
+			} else {
 				partidoEnBlanco.VotadoPara(votos.TipoVoto(i))
 			}
 		}
-	} else if posibleError == nil &&  !voto.Impugnado &&voto.VotoPorTipo == todoVotoEnBlanco{
+	} else if posibleError == nil && !voto.Impugnado && voto.VotoPorTipo == todoVotoEnBlanco {
 
 		for i := 0; i < cantidadCandidatos; i++ {
 			partidoEnBlanco.VotadoPara(votos.TipoVoto(i))
 		}
 	}
-	
+
 }
 
 func detectarVotantesFaltantes() {
@@ -321,7 +323,7 @@ func detectarErrorFin() bool {
 func main() {
 	params := os.Args[1:]
 	sliceVotantes = make([]votos.Votante, 0)
-	
+
 	if detectarErrorParametro(params, 2) {
 		return
 	}
@@ -331,7 +333,7 @@ func main() {
 	if !lecturaDePadron(params[1]) {
 		return
 	}
-	
+
 	partidoEnBlanco = votos.CrearVotosEnBlanco()
 
 	colaVotantes = cola.CrearColaEnlazada[votos.Votante]()
@@ -352,16 +354,16 @@ func main() {
 
 		case "votar":
 			tipoVoto := parametroSeparado[1]
-			
-			numeroLista, err:= strconv.Atoi(parametroSeparado[2])
-			if err != nil{
+
+			numeroLista, err := strconv.Atoi(parametroSeparado[2])
+			if err != nil {
 				errorAlterniva := errores.ErrorAlternativaInvalida{}
 				fmt.Println(errorAlterniva.Error())
-			}else if verificarErroresVotacion(tipoVoto, numeroLista)  {
+			} else if verificarErroresVotacion(tipoVoto, numeroLista) {
 				votar(numeroLista, tipoVoto)
 			}
 		case "deshacer":
-			if !detectarErrorFin(){
+			if !detectarErrorFin() {
 				deshacer()
 			}
 		case "fin-votar":
